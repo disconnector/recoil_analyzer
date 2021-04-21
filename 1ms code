@@ -1,0 +1,175 @@
+
+#include <Wire.h>
+#include <SPI.h>
+#include <SD.h>
+#include <Adafruit_Sensor.h>
+#include "Adafruit_ADT7410.h"
+#include <Adafruit_ADXL343.h>
+
+
+
+// Set the pins used
+#define cardSelect 11
+
+
+File logfile;
+
+// blink out an error code
+void error(uint8_t errno) {
+  while(1) {
+    uint8_t i;
+    for (i=0; i<errno; i++) {
+      digitalWrite(13, HIGH);
+      delay(100);
+      digitalWrite(13, LOW);
+      delay(100);
+    }
+    for (i=errno; i<10; i++) {
+      delay(200);
+    }
+  }
+
+}
+
+float tempC, accelX, accelY, accelZ;
+
+
+// Create the ADT7410 temperature sensor object
+Adafruit_ADT7410 tempsensor = Adafruit_ADT7410();
+
+// Create the ADXL343 accelerometer sensor object
+Adafruit_ADXL343 accel = Adafruit_ADXL343(12345);
+
+unsigned long myTime = 0;
+unsigned long timeOld = 0;
+unsigned long elapseTime = 0;
+
+
+void setup()
+{
+  // start the serial connection
+  Serial.begin(115200);
+
+ pinMode(13, OUTPUT);
+ // see if the card is present and can be initialized:
+  if (!SD.begin(cardSelect)) {
+    Serial.println("Card init. failed!");
+    error(2);
+  }
+  char filename[15];
+  strcpy(filename, "/SENSORAA.TXT");
+  for (uint8_t i = 0; i < 100; i++) {
+    filename[7] = '0' + i/10;
+    filename[8] = '0' + i%10;
+    // create if does not exist, do not open existing, write, sync after write
+    if (! SD.exists(filename)) {
+      break;
+    }
+  }
+
+  logfile = SD.open(filename, FILE_WRITE);
+  if( ! logfile ) {
+   // Serial.print("Couldnt create "); 
+   // Serial.println(filename);
+    Serial.println("Card init. failed!");
+    error(3);
+  }
+  Serial.print("Writing to "); 
+  Serial.println(filename);
+
+  pinMode(13, OUTPUT);
+  pinMode(8, OUTPUT);
+  // Serial.println("Ready!");
+
+
+ /* Initialise the ADXL343 */
+  if(!accel.begin())
+  {
+    /* There was a problem detecting the ADXL343 ... check your connections */
+    Serial.println("Ooops, no ADXL343 detected ... Check your wiring!");
+    while(1);
+  }
+
+  /* Set the range to whatever is appropriate for your project */
+  accel.setRange(ADXL343_RANGE_16_G);
+
+  /* Initialise the ADT7410 */
+  if(!tempsensor.begin())
+  {
+    // Serial.println("Couldn't find ADT7410!");
+    while (1);
+  }
+
+  // sensor takes 250 ms to get first readings
+  delay(250);
+  
+// set up temp sensor and print to data file
+tempC = tempsensor.readTempC();
+  // Serial.print("Temperature: "); Serial.print(tempC); Serial.println("C");
+  
+  logfile.println("time, x, y, z");
+
+
+}
+
+
+ 
+
+
+void loop()
+{
+
+
+
+myTime = millis();
+// Serial.print("myTime = ");Serial.print(myTime); Serial.print("timeOld = ");Serial.println(timeOld); 
+
+
+     if(myTime - timeOld >= 100) // If its been 100 ms or more...
+      {
+        digitalWrite(13, HIGH);
+        Serial.println("Flushing log . . . ");
+        logfile.flush();
+        timeOld = myTime; // Reset timeOld
+        digitalWrite(13, LOW);
+      }
+    
+       /* Get a new accel. sensor event */
+      sensors_event_t event;
+      accel.getEvent(&event);
+    
+      accelX = event.acceleration.x;
+      accelY = event.acceleration.y;
+      accelZ = event.acceleration.z;
+    
+      /* Display the results (acceleration is measured in m/s^2) */
+      elapseTime = (myTime - timeOld);
+ 
+     /* Serial.print(myTime); 
+      Serial.print (" ");
+      Serial.print(elapseTime); 
+      Serial.print (" ");
+      Serial.print(accelX);
+      Serial.print (" ");
+      Serial.print(accelY); 
+      Serial.print (" ");
+      Serial.println(accelZ); */
+      // Read and print out the temperature
+      
+    
+     logfile.print(myTime); 
+     logfile.print(",");
+     logfile.print(event.acceleration.x);
+     logfile.print(",");
+     logfile.print(event.acceleration.y);
+     logfile.print(",");
+     logfile.println(event.acceleration.z);
+    
+
+     
+     
+    
+      
+
+ 
+ }
